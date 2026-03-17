@@ -37,6 +37,20 @@ Not implemented: everything else in the IS v2 spec — no 3PID binding, no invit
 
 The IS v2 lookup endpoints are a compatibility shim. The target architecture is the `/v1/dump` endpoint: a bulletin board you download in bulk, not a service you query per-number. Clients download the full directory and resolve locally. The write side requires carrier attestation so only carrier-verified phone numbers enter the directory.
 
+## Trust model
+
+The phonebook verifies the carrier's ES256 signature on every write, rejecting entries without a valid carrier JWT. The provisioning agent has already verified the full SD-JWT-VC presentation (selective disclosures, key binding, nonce), but the phonebook does not trust the provisioner — it independently re-verifies the carrier signature and checks that the phone number in the verified claims matches the request.
+
+In a production design, each phonebook entry should carry a three-signature envelope:
+
+1. **Carrier** — attests the phone number is real and belongs to a credential holder (the SD-JWT-VC signature)
+2. **Wallet** — proves pseudonym ownership (ideally via a zero-knowledge proof rather than a self-assertion)
+3. **Provisioner** — attests that it verified both signatures and created the MXID binding at a specific time
+
+With all three signatures, any reader who downloads the phonebook can independently verify every entry without trusting the phonebook operator. The three-signature envelope is described but not yet implemented.
+
+The IS v2 per-number lookup endpoints (`/_matrix/identity/v2/lookup` etc.) are a compatibility shim. Element Web's invite dialog expects a standard IS v2 server for phone number search, so the phonebook speaks that protocol on the read side. The hashed lookup uses a public pepper, which provides no real privacy for phone numbers (the keyspace is small enough to enumerate in seconds). This is a known limitation of IS v2 itself, not something we can fix at this layer. The target read model is bulk download via `/dump` — clients take the whole dataset and resolve locally, so the phonebook never learns who you are looking for.
+
 ## Environment variables
 
 | Variable | Default | Purpose |
