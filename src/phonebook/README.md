@@ -21,7 +21,7 @@ These endpoints exist because Element Web's invite dialog expects a standard IS 
 
 Not implemented: everything else in the IS v2 spec — no 3PID binding, no invitation storage, no key management, no email validation. This is a directory, not a full identity server.
 
-### Write API (custom, not IS spec)
+### Prototype API (custom, not IS spec)
 
 | Endpoint | Purpose |
 |---|---|

@@ -46,6 +46,8 @@ pseudonym = SHA256(SHA256(holder_private_key_pem) || client_id)
 
 The holder's private key is hashed first (domain separation), then concatenated with the verifier's `client_id` and hashed again. Same wallet presenting to the same service always produces the same pseudonym. Different services get different pseudonyms. The pseudonym is included as a selectively-disclosable claim in the SD-JWT-VC — the provisioning agent receives it after verification, never derives it.
 
+This derivation is a PoC stand-in. The provisioning agent trusts the wallet's pseudonym assertion without cryptographic proof of correct derivation. In production, SGVP zero-knowledge proofs or BBS+ per-verifier linkability would bind the pseudonym to the wallet's credential-committed secret. The mechanism is under active specification in [ARF Discussion #375](https://github.com/eu-digital-identity-wallet/eudi-doc-architecture-and-reference-framework/discussions/375).
+
 ## Running
 
 ```

@@ -71,7 +71,7 @@ All browser-facing services routed via Traefik on :443 with locally-trusted TLS 
 
 ## Identified gaps
 
-- **Pseudonym binding via `cnf`.** This PoC uses the `cnf` claim in the issuer JWT to bind the holder's key and verify the key binding JWT. This approach has known limitations around unlinkability and holder privacy, and has been discussed in the Architecture and Reference Framework. Alternative mechanisms (e.g. self-generated verifiable pseudonyms, BBS+ signatures) have been proposed but are not yet specified.
+- **Pseudonym derivation is a PoC stand-in.** The wallet derives a per-service pseudonym via SHA-256 and asserts it as a selectively-disclosable claim. The provisioning agent trusts this assertion. In production, zero-knowledge proofs (e.g. Self-Generated Verifiable Pseudonyms, BBS+ per-verifier linkability) would bind the pseudonym to the wallet's credential-committed secret, preventing a malicious wallet from claiming someone else's pseudonym. The pseudonym mechanism is under active specification in [ARF Discussion #375](https://github.com/eu-digital-identity-wallet/eudi-doc-architecture-and-reference-framework/discussions/375).
 
 - **No carrier attestation rulebook.** No attestation rulebook exists for carrier issuance of phone number credentials into EUDI wallets. The EU reference wallet implementation does include an MSISDN credential type (`urn:eu.europa.ec.eudi:msisdn:1`), and the GSMA has called for a rulebook governing carrier attestation into digital identity wallets, but the specification work has not been done.
 
