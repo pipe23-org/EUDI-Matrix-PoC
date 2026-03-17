@@ -1,0 +1,83 @@
+diff --git a/src/components/views/dialogs/InviteDialog.tsx b/src/components/views/dialogs/InviteDialog.tsx
+index 6f60f56..23e286d 100644
+--- a/src/components/views/dialogs/InviteDialog.tsx
++++ b/src/components/views/dialogs/InviteDialog.tsx
+@@ -93,6 +93,14 @@ const extractTargetUnknownProfiles = async (
+     }, []);
+ };
+ 
++/**
++ * Returns true if the given text looks like an international phone number (E.164 format).
++ * Strips spaces and dashes before checking. Requires 7-15 digits after the leading +.
++ */
++function looksLikePhoneNumber(text: string): boolean {
++    return /^\+[0-9]{7,15}$/.test(text.replace(/[\s\-]/g, ""));
++}
++
+ interface Result {
+     userId: string;
+     user: Member;
+@@ -720,6 +728,45 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
+                 this.setState({ threepidResultsMixin: [] }); // clear results because it's moderately fatal
+             }
+         }
++
++        // Phone number lookup via identity server (msisdn / E.164)
++        if (looksLikePhoneNumber(term) && SettingsStore.getValue(UIFeature.IdentityServer)) {
++            try {
++                const authClient = new IdentityAuthClient();
++                const token = await authClient.getAccessToken();
++                if (!token) return;
++
++                if (term !== this.state.filterText) return;
++
++                // Strip spaces/dashes and leading '+' for E.164 msisdn format
++                const msisdn = term.replace(/[\s\-]/g, "").substring(1);
++                const lookup = await MatrixClientPeg.safeGet().lookupThreePid("msisdn", msisdn, token);
++                if (term !== this.state.filterText) return;
++
++                if (!lookup || !("mxid" in lookup)) {
++                    return;
++                }
++
++                const profile = await this.profilesStore.getOrFetchProfile(lookup.mxid);
++                if (term !== this.state.filterText || !profile) return;
++                this.setState({
++                    threepidResultsMixin: [
++                        {
++                            user: new DirectoryMember({
++                                user_id: lookup.mxid,
++                                display_name: profile.displayname,
++                                avatar_url: profile.avatar_url,
++                            }),
++                            userId: term,
++                        },
++                    ],
++                });
++            } catch (e) {
++                logger.error("Error looking up phone number on identity server:");
++                logger.error(e);
++                this.setState({ threepidResultsMixin: [] });
++            }
++        }
+     };
+ 
+     private updateFilter = (e: React.ChangeEvent<HTMLInputElement>): void => {
+@@ -1330,6 +1377,17 @@ export default class InviteDialog extends React.PureComponent<Props, IInviteDial
+             goButtonFn = this.inviteUsers;
+         }
+ 
++        // PoC patch: phone number lookup hint
++        if (identityServersEnabled && helpText) {
++            helpText = (
++                <React.Fragment>
++                    {helpText}
++                    <br />
++                    <strong>[Patched Element]</strong> You can also enter a phone number (e.g. +358401234567).
++                </React.Fragment>
++            );
++        }
++
+         const goButton =
+             this.props.kind == InviteKind.CallTransfer ? null : (
+                 <AccessibleButton

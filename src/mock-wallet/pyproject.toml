@@ -1,0 +1,18 @@
+[project]
+name = "mock-wallet"
+version = "0.1.0"
+description = "Mock EUDI wallet for PoC demo"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "httpx>=0.27",
+    "PyJWT[crypto]>=2.8",
+    "jwcrypto>=1.5",
+    "rich>=13",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

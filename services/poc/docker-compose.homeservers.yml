@@ -1,0 +1,219 @@
+name: homeservers
+
+services:
+
+  # ── HS1 ────────────────────────────────────────────────────────────
+
+  hs1-synapse:
+    image: matrixdotorg/synapse:v1.147.1
+    restart: unless-stopped
+    environment:
+      UID: "0"
+      GID: "0"
+    volumes:
+      - hs1-synapse-data:/data
+      - ./docker-volumes/hs1/synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ./docker-volumes/hs1/synapse/signing.key:/data/signing.key:ro
+      - ./configs/shared/synapse/log.config:/data/log.config:ro
+    depends_on:
+      hs1-postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.synapse-hs1.rule=Host(`synapse-hs1.localhost`)"
+      - "traefik.http.routers.synapse-hs1.tls=true"
+      - "traefik.http.services.synapse-hs1.loadbalancer.server.port=8008"
+    networks:
+      hs1-matrix:
+      federation:
+        aliases:
+          - hs1-synapse
+      traefik:
+
+  hs1-federation-tls:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./docker-volumes/hs1/federation-tls/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker-volumes/hs1/federation-tls/cert.pem:/etc/nginx/cert.pem:ro
+      - ./docker-volumes/hs1/federation-tls/key.pem:/etc/nginx/key.pem:ro
+    networks:
+      federation:
+        aliases:
+          - hs1.matrix.local
+
+  hs1-auth:
+    build:
+      context: ../../src/provisioning-agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SYNAPSE_URL: "http://hs1-synapse:8008"
+      SYNAPSE_SERVER_NAME: "hs1.matrix.local:8448"
+      SYNAPSE_ADMIN_TOKEN: "homeserver-secret"  # PoC demo credential — not for production
+      PHONEBOOK_URL: "http://phonebook:8090"
+      PUBLIC_BASE: "https://auth-hs1.localhost"
+      WALLET_URL: "http://localhost:8095"
+    volumes:
+      - ./docker-volumes/hs1/auth-data:/data
+      - ./docker-volumes/wallet/keys/carrier-public.jwk.json:/app/carrier-public.jwk.json:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth-hs1.rule=Host(`auth-hs1.localhost`)"
+      - "traefik.http.routers.auth-hs1.tls=true"
+      - "traefik.http.services.auth-hs1.loadbalancer.server.port=8080"
+    networks:
+      - hs1-matrix
+      - traefik
+    depends_on:
+      hs1-synapse:
+        condition: service_started
+
+  hs1-element:
+    build:
+      context: ../../src/element-web-patched
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./docker-volumes/hs1/element/config.json:/app/config.json:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.element-hs1.rule=Host(`element-hs1.localhost`)"
+      - "traefik.http.routers.element-hs1.tls=true"
+      - "traefik.http.services.element-hs1.loadbalancer.server.port=80"
+    networks:
+      - traefik
+
+  hs1-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: matrix
+      POSTGRES_PASSWORD: pw  # PoC demo credential — not for production
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - hs1-postgres-data:/var/lib/postgresql/data
+      - ./configs/shared/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matrix"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hs1-matrix
+
+  # ── HS2 ────────────────────────────────────────────────────────────
+
+  hs2-synapse:
+    image: matrixdotorg/synapse:v1.147.1
+    restart: unless-stopped
+    environment:
+      UID: "0"
+      GID: "0"
+    volumes:
+      - hs2-synapse-data:/data
+      - ./docker-volumes/hs2/synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ./docker-volumes/hs2/synapse/signing.key:/data/signing.key:ro
+      - ./configs/shared/synapse/log.config:/data/log.config:ro
+    depends_on:
+      hs2-postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.synapse-hs2.rule=Host(`synapse-hs2.localhost`)"
+      - "traefik.http.routers.synapse-hs2.tls=true"
+      - "traefik.http.services.synapse-hs2.loadbalancer.server.port=8008"
+    networks:
+      hs2-matrix:
+      federation:
+        aliases:
+          - hs2-synapse
+      traefik:
+
+  hs2-federation-tls:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./docker-volumes/hs2/federation-tls/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker-volumes/hs2/federation-tls/cert.pem:/etc/nginx/cert.pem:ro
+      - ./docker-volumes/hs2/federation-tls/key.pem:/etc/nginx/key.pem:ro
+    networks:
+      federation:
+        aliases:
+          - hs2.matrix.local
+
+  hs2-auth:
+    build:
+      context: ../../src/provisioning-agent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SYNAPSE_URL: "http://hs2-synapse:8008"
+      SYNAPSE_SERVER_NAME: "hs2.matrix.local:8448"
+      SYNAPSE_ADMIN_TOKEN: "homeserver-secret"  # PoC demo credential — not for production
+      PHONEBOOK_URL: "http://phonebook:8090"
+      PUBLIC_BASE: "https://auth-hs2.localhost"
+      WALLET_URL: "http://localhost:8095"
+    volumes:
+      - ./docker-volumes/hs2/auth-data:/data
+      - ./docker-volumes/wallet/keys/carrier-public.jwk.json:/app/carrier-public.jwk.json:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth-hs2.rule=Host(`auth-hs2.localhost`)"
+      - "traefik.http.routers.auth-hs2.tls=true"
+      - "traefik.http.services.auth-hs2.loadbalancer.server.port=8080"
+    networks:
+      - hs2-matrix
+      - traefik
+    depends_on:
+      hs2-synapse:
+        condition: service_started
+
+  hs2-element:
+    build:
+      context: ../../src/element-web-patched
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./docker-volumes/hs2/element/config.json:/app/config.json:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.element-hs2.rule=Host(`element-hs2.localhost`)"
+      - "traefik.http.routers.element-hs2.tls=true"
+      - "traefik.http.services.element-hs2.loadbalancer.server.port=80"
+    networks:
+      - traefik
+
+  hs2-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: matrix
+      POSTGRES_PASSWORD: pw  # PoC demo credential — not for production
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - hs2-postgres-data:/var/lib/postgresql/data
+      - ./configs/shared/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matrix"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hs2-matrix
+
+volumes:
+  hs1-synapse-data:
+  hs1-postgres-data:
+  hs2-synapse-data:
+  hs2-postgres-data:
+
+networks:
+  hs1-matrix:
+  hs2-matrix:
+  federation:
+    external: true
+    name: matrix-federation
+  traefik:
+    external: true
+    name: traefik

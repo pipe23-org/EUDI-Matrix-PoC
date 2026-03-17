@@ -1,0 +1,36 @@
+{
+  "default_server_config": {
+    "m.homeserver": {
+      "base_url": "https://${SYNAPSE_HOST}",
+      "server_name": "${SYNAPSE_HOST}"
+    },
+    "m.identity_server": {
+      "base_url": "https://${PHONEBOOK_HOST}"
+    },
+    "m.authentication": {
+      "issuer": "https://${AUTH_HOST}/"
+    }
+  },
+  "oidc_static_clients": {
+    "https://${AUTH_HOST}/": {
+      "client_id": "0000000000000000000WEBAPPS"
+    }
+  },
+  "default_country_code": "FI",
+  "disable_guests": true,
+  "disable_3pid_login": true,
+  "setting_defaults": {
+    "UIFeature.identityServer": true,
+    "feature_disable_call_per_sender_encryption": true
+  },
+  "features": {
+    "feature_dehydration": false
+  },
+  "force_device_key_backup": false,
+  "show_labs_settings": false,
+  "e2ee": {
+    "default": false,
+    "force_disable": true,
+    "secure_backup_required": false
+  }
+}

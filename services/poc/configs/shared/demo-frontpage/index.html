@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EUDI Wallet &rarr; Matrix Provisioning PoC</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 52em; margin: 0 auto; padding: 2em 1.5em; color: #1a1a1a; line-height: 1.6; }
+    h1 { font-size: 1.6em; margin-bottom: 0.3em; }
+    h2 { font-size: 1.2em; margin-top: 1.8em; margin-bottom: 0.5em; color: #333; }
+    p { margin-bottom: 0.8em; }
+    a { color: #0066cc; }
+    ul { margin: 0.5em 0 1em 1.5em; }
+    .subtitle { color: #666; font-size: 0.95em; margin-bottom: 1.5em; }
+    .step { background: #f8f9fa; border-left: 3px solid #0d9488; padding: 1em 1.2em; margin-bottom: 1em; border-radius: 0 4px 4px 0; }
+    .step-num { font-weight: 700; color: #0d9488; margin-right: 0.3em; }
+    .step a { font-weight: 600; }
+    .chain { background: #f0f4f8; padding: 1em 1.2em; border-radius: 4px; font-family: monospace; font-size: 0.85em; margin: 1em 0; white-space: pre-wrap; line-height: 1.8; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    th, td { text-align: left; padding: 0.4em 0.8em; border-bottom: 1px solid #e0e0e0; }
+    th { font-size: 0.85em; color: #666; text-transform: uppercase; letter-spacing: 0.03em; }
+    td a { font-family: monospace; font-size: 0.9em; }
+    .note { color: #666; font-size: 0.9em; font-style: italic; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 2em 0; }
+  </style>
+</head>
+<body>
+
+<h1>EUDI Wallet &rarr; Matrix Provisioning</h1>
+<p class="subtitle">
+  Account provisioning and phone number discovery for federated Matrix homeservers
+  using verifiable credentials from a mock EU Digital Identity Wallet.
+</p>
+
+<p>
+  This proof of concept uses a mock EUDI wallet to provision Matrix accounts
+  with pseudonymous identities and carrier-attested phone numbers. The phone
+  numbers are registered in a shared phonebook service that enables cross-homeserver
+  discovery. The wallet presents credentials via OpenID4VP; the provisioning
+  agent verifies them and creates accounts accordingly.
+</p>
+
+<h2>Stack</h2>
+
+<p>
+  Two homeserver stacks, each running:
+</p>
+<ul>
+  <li>Synapse (Matrix homeserver)</li>
+  <li>Provisioning agent (MSC3861 OIDC provider + OpenID4VP verifier)</li>
+  <li>Element Web (patched for phone number search via phonebook)</li>
+</ul>
+<p>
+  Shared services: a phonebook (phone &rarr; MXID mapping) and Traefik (subdomain
+  routing, TLS termination with mkcert certificates). Federation between
+  homeservers runs through nginx TLS sidecars with self-signed certificates on
+  an internal Docker network.
+</p>
+<p>
+  The mock wallet runs on the host with a terminal UI for identity selection.
+  It holds two test identities with distinct phone numbers and holder keys.
+</p>
+
+<h2>Auth flow</h2>
+
+<p>
+  When signing in to Element, the provisioning agent redirects the browser
+  to the mock wallet via OpenID4VP. The wallet presents an SD-JWT-VC containing a
+  carrier-signed phone number and a wallet-signed per-service pseudonym derived
+  from the wallet's holder key and the service's client ID.
+</p>
+<p>
+  The provisioning agent verifies the credential: it checks the carrier's
+  ES256 signature on the issuer JWT, validates each disclosure hash against the
+  signed <code>_sd</code> array, verifies the holder's key binding JWT signature,
+  and confirms the nonce and <code>sd_hash</code> match the authorization request.
+  After verification, it creates a Synapse account bound to the pseudonym and
+  writes a phonebook entry mapping the phone number to the new Matrix ID.
+</p>
+
+<div class="chain">Wallet (SD-JWT-VC) &rarr; OpenID4VP &rarr; Provisioning agent (verify + provision) &rarr; Synapse (account) + Phonebook (phone &rarr; MXID)</div>
+
+<p>
+  The patched Element Web searches the phonebook by phone number. Once both users
+  are provisioned, they can find each other by phone number and start a federated
+  conversation.
+</p>
+
+<h2>Demo walkthrough</h2>
+
+<div class="step">
+  <span class="step-num">1.</span>
+  <strong>Provision hs1 via Wallet A</strong><br>
+  Open <a href="https://element-hs1.localhost/" target="_blank">Element (hs1)</a>.
+  Click <em>Sign in</em>. Select <strong>Wallet A</strong> (+358401234567) in the terminal.
+</div>
+
+<div class="step">
+  <span class="step-num">2.</span>
+  <strong>Provision hs2 via Wallet B</strong><br>
+  Open <a href="https://element-hs2.localhost/" target="_blank">Element (hs2)</a>
+  in a new browser tab. Select <strong>Wallet B</strong> (+358501234567).
+</div>
+
+<div class="step">
+  <span class="step-num">3.</span>
+  <strong>Find by phone number</strong><br>
+  In Wallet B's Element tab, click <strong>+</strong> to start a new DM.
+  Type <code>+358401234567</code>. Element queries the phonebook; Wallet A's
+  account appears. Start the conversation.
+</div>
+
+<div class="step">
+  <span class="step-num">4.</span>
+  <strong>Federated chat</strong><br>
+  Switch to Wallet A's Element tab. The message from Wallet B is there.
+  Reply. The conversation crosses homeservers via federation.
+</div>
+
+<hr>
+
+<h2>Services</h2>
+<table>
+  <tr><th>Service</th><th>URL</th></tr>
+  <tr><td>Element (hs1)</td><td><a href="https://element-hs1.localhost/">element-hs1.localhost</a></td></tr>
+  <tr><td>Element (hs2)</td><td><a href="https://element-hs2.localhost/">element-hs2.localhost</a></td></tr>
+  <tr><td>Provisioning agent (hs1)</td><td><a href="https://auth-hs1.localhost/.well-known/openid-configuration">auth-hs1.localhost</a></td></tr>
+  <tr><td>Provisioning agent (hs2)</td><td><a href="https://auth-hs2.localhost/.well-known/openid-configuration">auth-hs2.localhost</a></td></tr>
+  <tr><td>Synapse API (hs1)</td><td><a href="https://synapse-hs1.localhost/_matrix/client/versions">synapse-hs1.localhost</a></td></tr>
+  <tr><td>Synapse API (hs2)</td><td><a href="https://synapse-hs2.localhost/_matrix/client/versions">synapse-hs2.localhost</a></td></tr>
+  <tr><td>Phonebook</td><td><a href="https://phonebook.localhost/_matrix/identity/v2">phonebook.localhost</a></td></tr>
+</table>
+
+<p class="note">
+  All browser-facing services routed via Traefik on :443 with locally-trusted TLS (mkcert).
+  The mock wallet runs on the host at localhost:8095.
+</p>
+
+<hr>
+
+<h2>Identified gaps</h2>
+
+<ul>
+  <li>
+    <strong>Pseudonym binding via <code>cnf</code>.</strong>
+    This PoC uses the <code>cnf</code> claim in the issuer JWT to bind the holder's
+    key and verify the key binding JWT. This approach has known limitations around
+    unlinkability and holder privacy, and has been discussed in the Architecture and
+    Reference Framework. Alternative mechanisms (e.g. self-generated verifiable
+    pseudonyms, BBS+ signatures) have been proposed but are not yet specified.
+  </li>
+  <li>
+    <strong>No carrier attestation rulebook.</strong>
+    No attestation rulebook exists for carrier issuance of phone number credentials
+    into EUDI wallets. The EU reference wallet implementation does include an MSISDN
+    credential type (<code>urn:eu.europa.ec.eudi:msisdn:1</code>), and the GSMA has
+    called for a rulebook governing carrier attestation into digital identity wallets,
+    but the specification work has not been done.
+  </li>
+  <li>
+    <strong>Phonebook trust model is incomplete.</strong>
+    The phonebook is a write-gated bulletin board: every write must include the
+    carrier's SD-JWT-VC issuer JWT, which the phonebook independently verifies
+    against the carrier's public key before accepting the entry. The
+    provisioning agent forwards the carrier JWT after its own verification,
+    but the phonebook does not trust the provisioner&mdash;it re-verifies the
+    carrier signature and checks that the phone number in the verified claims
+    matches the request. Reads are bulk download (<code>/dump</code>); the IS v2
+    per-number lookup endpoints are retained only for Element Web compatibility.
+    In a production design, phonebook entries should carry a three-signature
+    envelope: carrier attesting the phone number, wallet proving pseudonym
+    ownership (ideally via a zero-knowledge proof rather than a self-assertion),
+    and provisioner attesting the binding. This would make entries independently
+    verifiable by any reader, removing trust in the phonebook operator entirely.
+    The three-signature envelope is described but not yet implemented.
+  </li>
+</ul>
+
+<hr>
+
+<h2>Source code</h2>
+<table>
+  <tr><th>Component</th><th>Path</th></tr>
+  <tr><td>Mock EUDI wallet</td><td><a href="https://github.com/pipe23-org/EUDI-Matrix-PoC/tree/main/src/mock-wallet">src/mock-wallet/</a></td></tr>
+  <tr><td>Provisioning agent</td><td><a href="https://github.com/pipe23-org/EUDI-Matrix-PoC/tree/main/src/provisioning-agent">src/provisioning-agent/</a></td></tr>
+  <tr><td>Phonebook</td><td><a href="https://github.com/pipe23-org/EUDI-Matrix-PoC/tree/main/src/phonebook">src/phonebook/</a></td></tr>
+  <tr><td>Element Web (patched)</td><td><a href="https://github.com/pipe23-org/EUDI-Matrix-PoC/tree/main/src/element-web-patched">src/element-web-patched/</a></td></tr>
+  <tr><td>Docker Compose stacks</td><td><a href="https://github.com/pipe23-org/EUDI-Matrix-PoC/tree/main/services/poc">services/poc/</a></td></tr>
+  <tr><td>Lifecycle scripts</td><td><a href="https://github.com/pipe23-org/EUDI-Matrix-PoC/tree/main/services/scripts">services/scripts/</a></td></tr>
+</table>
+
+<p class="note">
+  Repository: <a href="https://github.com/pipe23-org/EUDI-Matrix-PoC">github.com/pipe23-org/EUDI-Matrix-PoC</a>
+</p>
+
+</body>
+</html>

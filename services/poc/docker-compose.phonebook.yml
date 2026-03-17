@@ -1,0 +1,26 @@
+name: phonebook
+
+services:
+
+  phonebook:
+    build:
+      context: ../../src/phonebook
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PHONEBOOK_PEPPER: "matrixrocks"  # PoC demo value — not for production
+      CARRIER_KEY_PATH: "/app/carrier-public.jwk.json"
+    volumes:
+      - ./docker-volumes/wallet/keys/carrier-public.jwk.json:/app/carrier-public.jwk.json:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.phonebook.rule=Host(`phonebook.localhost`)"
+      - "traefik.http.routers.phonebook.tls=true"
+      - "traefik.http.services.phonebook.loadbalancer.server.port=8090"
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true
+    name: traefik

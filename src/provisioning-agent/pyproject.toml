@@ -1,0 +1,16 @@
+[project]
+name = "provisioning-agent"
+version = "0.1.0"
+description = "MSC3861 OIDC provider + provisioning agent for Matrix Synapse"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "httpx>=0.27",
+    "PyJWT[crypto]>=2.8",
+    "jwcrypto>=1.5",
+    "python-dotenv>=1.0",
+
+    "python-multipart>=0.0.9",
+    "cryptography>=43",
+]
